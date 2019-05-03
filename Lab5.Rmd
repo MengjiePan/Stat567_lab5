@@ -1,0 +1,89 @@
+---
+title: "Lab5 ERGMs"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(fig.width=12, fig.height=8) 
+```
+
+##Specifying a ERGM Model
+
+ Within R, easily the most comprehensive and sophisticated package for ERGMs is the **ergm** package, which is part of the **statnet** suite of packages.4 Since **ergm** uses the network package to represent network objects, we convert the **igraph** object lazega to the format used in statnet, first separating the network into adjacency matrix and attributes
+ 
+ 
+ 
+```{r message=F}
+library(sand)
+data(lazega)
+A <- get.adjacency(lazega)
+v.attrs <- get.data.frame(lazega, what="vertices")
+```
+
+and then creating the analogous network object for **ergm**8
+```{r message=F}
+library(ergm) 
+lazega.s <- network::as.network(as.matrix(A), directed=FALSE) 
+network::set.vertex.attribute(lazega.s, "Office", v.attrs$Office) 
+network::set.vertex.attribute(lazega.s, "Practice", v.attrs$Practice) 
+network::set.vertex.attribute(lazega.s, "Gender", v.attrs$Gender) 
+network::set.vertex.attribute(lazega.s, "Seniority", v.attrs$Seniority)
+```
+
+
+For example, Bernoulli model may be specified for the network `lazega.s` as
+
+```{r}
+my.ergm.bern <- formula(lazega.s ~ edges)
+my.ergm.bern
+summary.statistics(my.ergm.bern)
+```
+
+For k-star models
+```{r}
+my.ergm <- formula(lazega.s ~ edges + kstar(2)+ kstar(3) + triangle)
+summary.statistics(my.ergm)
+```
+
+
+For alternating sums of k-triangles,
+```{r}
+my.ergm <- formula(lazega.s ~ edges+ gwesp(1, fixed=TRUE))
+summary.statistics(my.ergm)
+```
+
+
+Main effects and second-order effects may be incorporated into a model within ergm using the terms nodemain and nodematch, respectively.
+
+```{r}
+lazega.ergm <- formula(lazega.s ~ edges + gwesp(log(3), fixed=TRUE)
++ nodemain("Seniority")
++ nodemain("Practice")
++ match("Practice") + match("Gender") + match("Office"))
+```
+
+##Model Fitting
+In **ergm**, models are fit using the function `ergm`, which implements a version of Markov chain Monte Carlo maximum likelihood estimation.
+
+```{r message =F}
+set.seed(42)
+lazega.ergm.fit <- ergm(lazega.ergm)
+anova(lazega.ergm.fit)
+```
+
+Similarly, we can examine the relative contribution of the individual variables in our model.
+
+```{r}
+summary.ergm(lazega.ergm.fit)
+```
+
+##Goodness-of-Fit
+To assess the goodness-of-fit of our model, as fit by ergm, the function gof in ergm runs the necessary Monte Carlo simulation and calculates comparisons with the original network graph in terms of the distribution of degree, geodesic length, and edge-wise shared partners (i.e., the number of neighbors shared by a pair of vertices defining an edge).
+
+```{r}
+gof.lazega.ergm <- gof(lazega.ergm.fit)
+plot(gof.lazega.ergm)
+```
+
+
